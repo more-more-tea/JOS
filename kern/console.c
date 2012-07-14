@@ -45,7 +45,89 @@ delay(void)
 #define   COM_LSR_TXRDY	0x20	//   Transmit buffer avail
 #define   COM_LSR_TSRE	0x40	//   Transmitter off
 
+// define escape code scanning transfering state
+#define COLOR_MODE_OFF    0
+#define COLOR_MODE_ON     1
+
+#define COLOR_MODE_DELIM  ';'
+#define COLOR_MODE_BEGIN  0x1B
+#define COLOR_MODE_END    'm'
+
+#define COLOR_MODE_BUFFER 128
+
+// named color
+#define COLOR_BLACK     0x0
+#define COLOR_BLUE      0x1
+#define COLOR_GREEN     0x2
+#define COLOR_CYAN      0x3
+#define COLOR_RED       0x4
+#define COLOR_MAGENTA   0x5
+#define COLOR_YELLOW    0x6
+#define COLOR_WHITE     0x7
+
+static int colortbl[48] =
+{
+    [30] = COLOR_BLACK,
+    [31] = COLOR_RED,
+    [32] = COLOR_GREEN,
+    [33] = COLOR_YELLOW,
+    [34] = COLOR_BLUE,
+    [35] = COLOR_MAGENTA,
+    [36] = COLOR_CYAN,
+    [37] = COLOR_WHITE,
+    [40] = COLOR_BLACK,
+    [41] = COLOR_RED,
+    [42] = COLOR_GREEN,
+    [44] = COLOR_YELLOW,
+    [44] = COLOR_BLUE,
+    [45] = COLOR_MAGENTA,
+    [46] = COLOR_CYAN,
+    [47] = COLOR_WHITE,
+};
+
+static uint8_t color;
+static uint8_t state = COLOR_MODE_OFF;
+
+// buffer color mode
+static int    color_buf[COLOR_MODE_BUFFER];
+static size_t color_buf_len;
+
 static bool serial_exists;
+
+static int
+get_color(int *escape)
+{
+	// index to color buffer
+	int index     = 0;
+	int color_idx = 0;
+	int foreground_color = 0;
+	int background_color = 0;
+
+	// color buffer should start with a character '['
+	if (color_buf[index++] != '[')
+		return -1;
+	while (index < color_buf_len) {
+		int c = color_buf[index++];
+		if (c != COLOR_MODE_DELIM) {
+			if (c >= '0' && c <= '9')
+				color_idx = 10 * color_idx + (c - '0');
+			else
+				return -1;
+		} else {
+			if (color_idx >= 30 && color_idx <= 37) 
+				foreground_color = colortbl[color_idx];
+			else if (color_idx >= 40 && color_idx <= 47)
+				background_color = colortbl[color_idx];
+			else
+				return -1;
+
+			// clear color index
+			color_idx = 0;
+		}
+	}
+
+	return (background_color << 4) | foreground_color;
+}
 
 static int
 serial_proc_data(void)
@@ -164,7 +246,7 @@ cga_putc(int c)
 {
 	// if no attribute given, then use black on white
 	if (!(c & ~0xFF))
-		c |= 0x7000;
+		c |= 0x0700;
 
 	switch (c & 0xff) {
 	case '\b':
@@ -415,11 +497,32 @@ cons_getc(void)
 	kbd_intr();
 
 	// grab the next character from the input buffer.
-	if (cons.rpos != cons.wpos) {
+	while (cons.rpos != cons.wpos) {
 		c = cons.buf[cons.rpos++];
 		if (cons.rpos == CONSBUFSIZE)
 			cons.rpos = 0;
-		return c;
+
+		switch (c) {
+		case COLOR_MODE_BEGIN:
+			state = COLOR_MODE_ON;
+			// clear color buffer
+			color_buf_len = 0;
+			break;
+		case COLOR_MODE_END:
+			if (state == COLOR_MODE_ON) {
+				state = COLOR_MODE_OFF;
+				color = get_color(color_buf);
+			} else {
+				return c;
+			}
+
+			break;
+		default:
+			if (state == COLOR_MODE_OFF)
+				return c;
+			else
+				color_buf[color_buf_len++] = c;
+		}
 	}
 	return 0;
 }
@@ -428,6 +531,9 @@ cons_getc(void)
 static void
 cons_putc(int c)
 {
+	// color print
+	c |= color << 8;
+
 	serial_putc(c);
 	lpt_putc(c);
 	cga_putc(c);
