@@ -108,18 +108,22 @@ get_color(int *escape)
 		return -1;
 	while (index < color_buf_len) {
 		int c = color_buf[index++];
-		if (c != COLOR_MODE_DELIM) {
-			if (c >= '0' && c <= '9')
-				color_idx = 10 * color_idx + (c - '0');
-			else
-				return -1;
-		} else {
+		if (c >= '0' && c <= '7')
+			color_idx = 10 * color_idx + (c - '0');
+		else if (c != COLOR_MODE_DELIM)
+			break;
+
+		if ((c == COLOR_MODE_DELIM) || (index == color_buf_len)) {
+			// validate escape sequence
+			// set foreground color
 			if (color_idx >= 30 && color_idx <= 37) 
 				foreground_color = colortbl[color_idx];
+			// set background color
 			else if (color_idx >= 40 && color_idx <= 47)
 				background_color = colortbl[color_idx];
+			// invalid color
 			else
-				return -1;
+				break;
 
 			// clear color index
 			color_idx = 0;
