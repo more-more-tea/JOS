@@ -11,6 +11,13 @@
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
 
+// user extended function
+#include <inc/mmu.h>
+#include <inc/types.h>
+#include <inc/atol.h>
+
+#include <kern/pmap.h>
+
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
 
@@ -24,7 +31,12 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
-        { "backtrace", "Display hierachy of calling stack", mon_backtrace }
+	{ "backtrace", "Display hierachy of calling stack", mon_backtrace },
+// extended in Lab2
+	{ "show_mappings", "show_mappings vm_low vm_high\nDisplay physical page mappings and corresponding permission bits that apply to the pages between vm_low and vm_high inclusively.", mon_show_mappings},
+	{ "set_vm_perm", "set_vm_perm vm_addr perm_bit\nSet permission on specific vm mapping.", mon_set_vm_perm},
+	{ "dump_vm", "dump_vm vm_low vm_high\nDump contents of memory given a range of virtual memory address", mon_dump_vm},
+	{ "dump_pm", "dump_pm pm_low pm_high\nDump contents of memory given a range of physical memory address", mon_dump_pm}
 };
 #define NCOMMANDS (sizeof(commands)/sizeof(commands[0]))
 
@@ -88,6 +100,181 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 	return 0;
 }
 
+
+// extended monitor in Lab2
+int
+mon_show_mappings(int argc, char **argv, struct Trapframe *tf)
+{
+	// wrong command format
+	if (argc != 3) {
+		cprintf("Usage:\n%s vm_low vm_high\n", argv[0]);
+	} else {
+		long low_mem  = ROUNDDOWN(atol(argv[1]), PGSIZE);
+		long high_mem = atol(argv[2]);
+		// make sure high memory address is included
+		if (!(high_mem % PGSIZE))
+			high_mem = high_mem + 1;
+		high_mem = ROUNDUP(high_mem, PGSIZE);
+
+		// print header
+		cprintf("Virtual addr\tPhysical addr\tPermission\n");
+		while (low_mem < high_mem) {
+			pte_t *pte = pgdir_walk(kern_pgdir, (void *) low_mem, 0);
+			if (pte)
+				cprintf("%08p\t%08p\t%03p\n", low_mem, PTE_ADDR(*pte), PGOFF(*pte));
+			else
+				cprintf("0x00000000\t0x00000000\t0x00000000\n");
+
+			low_mem += PGSIZE;
+		}
+	}
+
+	return 0;
+}
+
+int
+mon_set_vm_perm(int argc, char **argv, struct Trapframe *tf)
+{
+	// wrong command format
+	if (argc != 3) {
+		cprintf("Usage:\n%s vm_addr vm_perm\n", argv[0]);
+	} else {
+		long mem  = atol(argv[1]);
+		long alig = ROUNDDOWN(mem, PGSIZE);
+		long perm = atol(argv[2]);
+
+		pte_t *pte = pgdir_walk(kern_pgdir, (void *) mem, 0);
+		if (pte) {
+			if (PTE_ADDR(perm))
+				cprintf("WARNING: Only lower 12 bits is set.\n");
+			*pte = PTE_ADDR(*pte) | PGOFF(perm);
+		} else
+			cprintf("No physical memory mapped at %08p\n", mem);
+	}
+
+	return 0;
+}
+
+#define ACCESSIBLE(mem) ((UPAGES < (mem) && (mem) < ULIM) || \
+			 ((KSTACKTOP - KSTKSIZE) < (mem) && (mem) < KSTACKTOP) || \
+			 (KERNBASE < (mem)))
+
+// utility function
+void
+dump_mem_line(int low, int high)
+{
+	if (ACCESSIBLE(low)) {
+		cprintf("%08p\t", low & ~0xf);
+		if (low & 0xf) {
+			int count = 0;
+			while (count++ < 16 - high + low)
+				cprintf("   "); 
+		}
+
+		while (low < high)
+			cprintf("%02x ", *(char *) low++ & 0xff);
+		cprintf("\n");
+	} else {
+		cprintf("WARNING: memory at virtual address %08p cannot be accessed.\n", low);
+	}
+}
+
+void
+dump_mem_range(int low, int high, int low_aligned, int high_aligned)
+{
+	if (low < low_aligned)
+		dump_mem_line(low, low_aligned);
+	low = low_aligned;
+	while (low_aligned < high_aligned) {
+		low_aligned += 16;
+		dump_mem_line(low, low_aligned);
+		low  += 16;
+	}
+	if (low < high)
+		dump_mem_line(low, high);
+}
+
+int
+mon_dump_vm(int argc, char **argv, struct Trapframe *tf)
+{
+	// wrong command format
+	if (argc != 3) {
+		cprintf("Usage:\n%s vm_low vm_high\n", argv[0]);
+	} else {
+		long low_mem  = atol(argv[1]);
+		long high_mem = atol(argv[2]);
+		long laligned = ROUNDUP(low_mem, 16);
+		long haligned = ROUNDDOWN(high_mem, 16);
+
+		// print header
+		cprintf("Address:offset\t00 01 02 03 04 05 06 07 "
+			"08 09 0A 0B 0C 0D 0E 0F \n");
+		dump_mem_range(low_mem, high_mem, laligned, haligned);
+	}
+
+	return 0;
+}
+
+int
+mon_dump_pm(int argc, char **argv, struct Trapframe *tf)
+{
+	// wrong command format
+	if (argc != 3) {
+		cprintf("Usage:\n%s pm_low pm_high\n", argv[0]);
+	} else {
+		long low_mem  = atol(argv[1]);
+		long high_mem = atol(argv[2]);
+
+		// use the last virtual page to map physical address
+		uintptr_t va     = 0xf000e000;
+
+		if (PGNUM(low_mem) > npages) {
+			cprintf("Memory range beyond physical limit.\n");
+		} else {
+			if (PGNUM(high_mem) > npages) {
+				cprintf("WARNING: memory out of range, "
+					"set upper bound limit.\n");
+				high_mem = npages * PGSIZE;
+			}
+			// print header
+			cprintf("Address:offset\t00 01 02 03 04 05 06 07 "
+				"08 09 0A 0B 0C 0D 0E 0F \n");
+
+			struct Page *pp = NULL;
+			pp = pa2page((physaddr_t) low_mem);
+			page_insert(kern_pgdir, pp, (void *) va, 0);
+
+			// first line, need padding
+			size_t offset = PGOFF(low_mem);
+			int space     = low_mem % 16;
+			if (space) {
+				cprintf("%08p\t", low_mem & ~0xf);
+				while (space--)
+					cprintf("   ");
+			}
+			while (low_mem < high_mem) {
+				if (!(low_mem % 16))
+					cprintf("%08p\t", low_mem & ~0xf);
+
+				if (!(low_mem % PGSIZE)) {
+					pp = pa2page((physaddr_t) low_mem);
+					page_insert(kern_pgdir, pp, (void *) va, 0);
+				}
+
+				cprintf("%02x ",
+				(*(char *) (va | PGOFF(low_mem++))) & 0xff);
+
+				if (!(low_mem % 16))
+					cprintf("\n");
+			}
+
+			if (high_mem % 16)
+				cprintf("\n");
+		}
+	}
+
+	return 0;
+}
 
 
 /***** Kernel monitor command interpreter *****/
