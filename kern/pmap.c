@@ -460,8 +460,23 @@ static void
 boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm)
 {
 	// Fill this function in
-	pte_t *pte = pgdir_walk(pgdir, (void *) va, 0);
-	*pte = PTE_ADDR(pa) | perm | PTE_P;
+	uintptr_t  va_ptr;
+	uintptr_t  rounded_va;
+	physaddr_t pa_ptr;
+	physaddr_t rounded_pa;
+
+	int offset = 0;
+	while (offset < size) {
+		va_ptr = va + offset;
+		pa_ptr = pa + offset;
+		rounded_va = ROUNDDOWN(va_ptr, PGSIZE);
+		rounded_pa = ROUNDDOWN(pa_ptr, PGSIZE);
+
+		pte_t *pte = pgdir_walk(pgdir, (void *) rounded_va, 0);
+		*pte = PTE_ADDR(rounded_pa) | perm | PTE_P;
+
+		offset += PGSIZE;
+	}
 }
 
 //
