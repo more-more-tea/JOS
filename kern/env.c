@@ -116,6 +116,19 @@ env_init(void)
 {
 	// Set up envs array
 	// LAB 3: Your code here.
+	env_free_list = NULL;                 /* redundant */
+	int index;
+	for (index = NENV - 1; index >= 0; index--) {
+		struct Env *env = envs + index;
+		// add env into free list in reverse order
+		env->env_link      = env_free_list;
+		env_free_list      = env;
+		env->env_id        = 0;
+		env->env_parent_id = 0;
+		env->env_status    = ENV_FREE;
+		env->env_runs      = 0;
+		env->env_pgdir     = NULL;
+	}
 
 	// Per-CPU part of the initialization
 	env_init_percpu();
@@ -179,6 +192,21 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
+	// env should be non-null
+	assert(e);
+	// set page reference
+	p->pp_ref = 1;
+	e->env_pgdir = (pte_t *)page2kva(p);
+
+	// take kern_pgdir as a template
+	// initialize memory mapping between [UTOP, UVPT)
+	int index;
+	for (index = PDX(UTOP); index < PDX(UVPT); index++)
+		e->env_pgdir[index] = kern_pgdir[index];
+
+	// initalize memory mapping above ULIM inclusively
+	for (index = PDX(ULIM); index < PGSIZE; index++)
+		e->env_pgdir[index] = kern_pgdir[index];
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
@@ -210,6 +238,8 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 		return r;
 
 	// Generate an env_id for this environment.
+	// TODO
+	// check the unique-ness of env_id
 	generation = (e->env_id + (1 << ENVGENSHIFT)) & ~(NENV - 1);
 	if (generation <= 0)	// Don't create a negative env_id.
 		generation = 1 << ENVGENSHIFT;

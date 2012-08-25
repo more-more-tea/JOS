@@ -163,6 +163,9 @@ mem_init(void)
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
+	envs = (struct Env *) boot_alloc(NENV * sizeof(struct Env));
+	// initalize env's all 0's
+	// memset((void *)envs, 0, NENV * sizeof(struct Env));
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -200,6 +203,11 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
+	va = UENVS;
+	for (va = UENVS; va < UPAGES; va += PGSIZE) {
+		pte_t *pte = pgdir_walk(kern_pgdir, (const void *) va, 1);
+		*pte = PTE_ADDR(PADDR(envs) + va - UENVS) | PTE_U | PTE_P;
+	}
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -319,8 +327,14 @@ page_init(void)
 	}
 	// one page table directory `kern_pgdir`
 	pages[i++].pp_ref = 1;
+	// all pages for `struct Page` is occupied.
 	size_t pages_end = i + (ROUNDUP(npages * sizeof(struct Page), PGSIZE) / PGSIZE);
 	for (; i < pages_end; i++) {
+		pages[i].pp_ref = 1;
+	}
+	// all pages for `struct Env` is occupied.
+	size_t envs_end = i + (ROUNDUP(NENV * sizeof(struct Env), PGSIZE) / PGSIZE);
+	for (; i < envs_end; i++) {
 		pages[i].pp_ref = 1;
 	}
 
