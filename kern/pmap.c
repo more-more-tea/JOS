@@ -643,8 +643,32 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
+	const void *end = (const void *) ROUNDUP(va + len - 1, PGSIZE);
+	const void *va_itr;
 
-	return 0;
+	int error      = 0;
+	int permission = perm | PTE_P;
+	// the address is below ULIM
+	if (end < (void *) ULIM) {
+		// extract page table address
+		pte_t *pte;
+		for (va_itr = va; va_itr < end; va_itr += PGSIZE) {
+			void *page_lower = (void *) (((int) va_itr) & ~(PGSIZE - 1));
+			(void) page_lookup(env->env_pgdir, \
+				page_lower, &pte);
+			// don't have permission on this page
+			if (((*pte) & permission) != permission) {
+				user_mem_check_addr = va_itr;
+				error = -E_FAULT;
+			}
+		}
+	} else {
+		// error occurs
+		user_mem_check_addr = end;
+		error = -E_FAULT;
+	}
+
+	return error;
 }
 
 //

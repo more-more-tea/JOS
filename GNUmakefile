@@ -126,7 +126,7 @@ include lib/Makefrag
 include user/Makefrag
 
 
-QEMUOPTS = -hda $(OBJDIR)/kern/kernel.img -serial mon:stdio -gdb tcp::$(GDBPORT) -D qemu.log
+QEMUOPTS = -hda $(OBJDIR)/kern/kernel.img -serial mon:stdio
 IMAGES = $(OBJDIR)/kern/kernel.img
 QEMUOPTS += $(QEMUEXTRA)
 
@@ -147,7 +147,7 @@ qemu-gdb: $(IMAGES) .gdbinit
 	@echo "***"
 	@echo "*** Now run 'gdb'." 1>&2
 	@echo "***"
-	$(QEMU) $(QEMUOPTS) -S
+	$(QEMU) $(QEMUOPTS) -S -s -p 26000
 
 qemu-nox-gdb: $(IMAGES) .gdbinit
 	@echo "***"

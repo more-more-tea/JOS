@@ -46,10 +46,43 @@
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
+	TRAPHANDLER_NOEC(DE,  T_DIVIDE);
+	TRAPHANDLER_NOEC(DB,  T_DEBUG);
+	TRAPHANDLER_NOEC(NMI, T_NMI);
+	TRAPHANDLER_NOEC(BP,  T_BRKPT);
+	TRAPHANDLER_NOEC(OF,  T_OFLOW);
+	TRAPHANDLER_NOEC(BR,  T_BOUND);
+	TRAPHANDLER_NOEC(UD,  T_ILLOP);
+	TRAPHANDLER_NOEC(NM,  T_DEVICE);
+	TRAPHANDLER(DF,  T_DBLFLT);
+	# trap 9 is reserved
+	TRAPHANDLER(TS, T_TSS);
+	TRAPHANDLER(NP, T_SEGNP);
+	TRAPHANDLER(SS, T_STACK);
+	TRAPHANDLER(GP, T_GPFLT);
+	TRAPHANDLER(PF, T_PGFLT);
+	# trap 15 is reserved
+	TRAPHANDLER_NOEC(MF, T_FPERR);
+	TRAPHANDLER(AC, T_ALIGN);
+	TRAPHANDLER_NOEC(MC, T_MCHK);
+	TRAPHANDLER_NOEC(XF, T_SIMDERR);
 
-
+	# trap 48 for system call
+	TRAPHANDLER_NOEC(SYS_CALL, T_SYSCALL);
 
 /*
  * Lab 3: Your code here for _alltraps
  */
-
+_alltraps:
+	pushw $0;                       # padding
+	pushw %ds;                      # push data segment
+	pushw $0;                       # padding
+	pushw %es;                      # push data segment
+	pushal;                         # push all registers
+	# cannot directly operate on segment register
+	movw $GD_KD, %ax;
+	movw %ax, %ds;
+	movw %ax, %es;
+	# pass parameter and call function
+	pushl %esp;
+	call trap;

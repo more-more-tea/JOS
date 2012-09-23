@@ -31,5 +31,7 @@ void XF();               // SIMD floating-point exception
 // 32-47 for device IRQs
 // interrupt 32 - 47
 // reserved
+// system call
+void SYS_CALL();
 
 #endif                   // JOS_KERN_TRAPHANDLER_H
