@@ -658,13 +658,13 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 				page_lower, &pte);
 			// don't have permission on this page
 			if (((*pte) & permission) != permission) {
-				user_mem_check_addr = va_itr;
+				user_mem_check_addr = (uintptr_t) va_itr;
 				error = -E_FAULT;
 			}
 		}
 	} else {
 		// error occurs
-		user_mem_check_addr = end;
+		user_mem_check_addr = (uintptr_t) end;
 		error = -E_FAULT;
 	}
 
