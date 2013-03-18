@@ -299,7 +299,7 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   (Watch out for corner-cases!)
 	void *va_begin = ROUNDDOWN(va, PGSIZE);
 	// an extra byte for corner case
-	void *va_end   = ROUNDUP(va + len + 1, PGSIZE);
+	void *va_end   = ROUNDUP(va + len, PGSIZE);
 
 	void *va_itr;
 	for (va_itr = va_begin; va_itr < va_end; va_itr += PGSIZE) {
@@ -538,7 +538,7 @@ env_run(struct Env *e)
 		panic("NULL environment.\n");
 
 	// Step 1:
-	if (curenv != e) {
+	if (curenv) {
 		// set current environment (if any) back to ENV_RUNNABLE
 		if (curenv && curenv->env_status == ENV_RUNNING)
 			curenv->env_status = ENV_RUNNABLE;

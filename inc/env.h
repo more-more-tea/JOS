@@ -22,7 +22,7 @@ typedef int32_t envid_t;
 // created at different times, but share the same environment index.
 //
 // All real environments are greater than 0 (so the sign bit is zero).
-// envid_ts less than 0 signify errors.  The envid_t == 0 is special, and
+// envid_t's less than 0 signify errors.  The envid_t == 0 is special, and
 // stands for the current environment.
 
 #define LOG2NENV		10
