@@ -133,6 +133,7 @@ fail () {
 
 # Usage: runtest <tagname> <defs> <check fn> <check args...>
 runtest () {
+echo '>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>'
 	perl -e "print '$1: '"
 	rm -f obj/kern/init.o obj/kern/kernel obj/kern/kernel.img 
 	[ "$preservefs" = y ] || rm -f obj/fs/fs.img

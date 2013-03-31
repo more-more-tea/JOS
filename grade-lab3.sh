@@ -21,6 +21,7 @@ runtest1 divzero \
 	'  eip  0x008.....' \
 	'  ss   0x----0023' \
 	'.00001000. free env 00001000'
+echo '>>>>>>>>>>>>>>>>>>>>>>>> divzero done! <<<<<<<<<<<<<<<<<<<<<<<<'
 
 runtest1 softint \
 	'Welcome to the JOS kernel monitor!' \

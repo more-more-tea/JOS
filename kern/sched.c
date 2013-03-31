@@ -29,6 +29,26 @@ sched_yield(void)
 	// below to switch to this CPU's idle environment.
 
 	// LAB 4: Your code here.
+    idle = curenv + 1;          // start from next to current env
+    while (idle != curenv) {
+        if (idle == envs + NENV) {
+            idle = envs + 1;    // precisely speaking, this should be
+                                // envs + #CPU, but don't know how to read
+        }
+        // if expected idle env is not runnable search for next env
+        if (idle->env_status != ENV_RUNNABLE) {
+            ++idle;
+        } else {
+            break;
+        }
+    }
+
+    // find another idle env to run
+    if (idle != curenv) {
+        env_run(idle);
+    } else if (curenv->env_status == ENV_RUNNING) {
+        env_run(curenv);
+    }
 
 	// For debugging and testing purposes, if there are no
 	// runnable environments other than the idle environments,

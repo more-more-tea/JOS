@@ -154,7 +154,7 @@ qemu-gdb: $(IMAGES) .gdbinit
 	@echo "***"
 	@echo "*** Now run 'gdb'." 1>&2
 	@echo "***"
-	$(QEMU) $(QEMUOPTS) -S
+	$(QEMU) $(QEMUOPTS) -S -s -p 26000
 
 qemu-nox-gdb: $(IMAGES) .gdbinit
 	@echo "***"
