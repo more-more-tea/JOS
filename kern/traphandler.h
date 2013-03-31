@@ -29,6 +29,7 @@ void MC();               // machine check exception
 void XF();               // SIMD floating-point exception
 // interrupt 20 - 31 is reserved
 // 32-47 for device IRQs
+void IRQ();
 // interrupt 32 - 47
 // reserved
 // system call

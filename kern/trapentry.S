@@ -25,6 +25,7 @@
 	.globl name;		/* define global symbol for 'name' */	\
 	.type name, @function;	/* symbol type is function */		\
 	.align 2;		/* align function definition */		\
+    cli;            /* mask interrupts */           \
 	name:			/* function starts here */		\
 	pushl $(num);							\
 	jmp _alltraps
@@ -37,6 +38,7 @@
 	.globl name;							\
 	.type name, @function;						\
 	.align 2;							\
+    cli;                                \
 	name:								\
 	pushl $0;							\
 	pushl $(num);							\
@@ -56,19 +58,37 @@
 	TRAPHANDLER_NOEC(UD,  T_ILLOP);
 	TRAPHANDLER_NOEC(NM,  T_DEVICE);
 	TRAPHANDLER(DF,  T_DBLFLT);
-	# trap 9 is reserved
+	// trap 9 is reserved
 	TRAPHANDLER(TS, T_TSS);
 	TRAPHANDLER(NP, T_SEGNP);
 	TRAPHANDLER(SS, T_STACK);
 	TRAPHANDLER(GP, T_GPFLT);
 	TRAPHANDLER(PF, T_PGFLT);
-	# trap 15 is reserved
+	// trap 15 is reserved
 	TRAPHANDLER_NOEC(MF, T_FPERR);
 	TRAPHANDLER(AC, T_ALIGN);
 	TRAPHANDLER_NOEC(MC, T_MCHK);
 	TRAPHANDLER_NOEC(XF, T_SIMDERR);
 
-	# trap 48 for system call
+    // trap 32 irq handler
+    TRAPHANDLER(IRQ0, IRQ_OFFSET);
+    TRAPHANDLER(IRQ1, IRQ_OFFSET+1);
+    TRAPHANDLER(IRQ2, IRQ_OFFSET+2);
+    TRAPHANDLER(IRQ3, IRQ_OFFSET+3);
+    TRAPHANDLER(IRQ4, IRQ_OFFSET+4);
+    TRAPHANDLER(IRQ5, IRQ_OFFSET+5);
+    TRAPHANDLER(IRQ6, IRQ_OFFSET+6);
+    TRAPHANDLER(IRQ7, IRQ_OFFSET+7);
+    TRAPHANDLER(IRQ8, IRQ_OFFSET+8);
+    TRAPHANDLER(IRQ9, IRQ_OFFSET+9);
+    TRAPHANDLER(IRQ10, IRQ_OFFSET+10);
+    TRAPHANDLER(IRQ11, IRQ_OFFSET+11);
+    TRAPHANDLER(IRQ12, IRQ_OFFSET+12);
+    TRAPHANDLER(IRQ13, IRQ_OFFSET+13);
+    TRAPHANDLER(IRQ14, IRQ_OFFSET+14);
+    TRAPHANDLER(IRQ15, IRQ_OFFSET+15);
+
+	// trap 48 for system call
 	TRAPHANDLER_NOEC(SYS_CALL, T_SYSCALL);
 
 /*
@@ -80,10 +100,10 @@ _alltraps:
 	pushw $0;                       # padding
 	pushw %es;                      # push data segment
 	pushal;                         # push all registers
-	# cannot directly operate on segment register
+	// cannot directly operate on segment register
 	movw $GD_KD, %ax;
 	movw %ax, %ds;
 	movw %ax, %es;
-	# pass parameter and call function
+	// pass parameter and call function
 	pushl %esp;
 	call trap;

@@ -254,6 +254,9 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	e->env_status = ENV_RUNNABLE;
 	e->env_runs = 0;
 
+    // ensure interrupts in newly created environment is not masked
+    e->env_tf.tf_eflags |= FL_IF;
+
 	// Clear out all the saved register state,
 	// to prevent the register values
 	// of a prior environment inhabiting this Env structure
