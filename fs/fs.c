@@ -61,7 +61,17 @@ alloc_block(void)
 	// super->s_nblocks blocks in the disk altogether.
 
 	// LAB 5: Your code here.
-	panic("alloc_block not implemented");
+	// panic("alloc_block not implemented");
+    int blockno;
+    for (blockno = 0; blockno < super->s_nblocks; blockno++) {
+        if (block_is_free(blockno)) {
+            bitmap[blockno / 32] ^= 1 << (blockno % 32);
+            flush_block(((void *)bitmap) + blockno / BLKBITSIZE);
+
+            return blockno;
+        }
+    }
+
 	return -E_NO_DISK;
 }
 
@@ -75,6 +85,7 @@ check_bitmap(void)
 	uint32_t i;
 
 	// Make sure all bitmap blocks are marked in-use
+    // The additional 2 is for block0 and block1
 	for (i = 0; i * BLKBITSIZE < super->s_nblocks; i++)
 		assert(!block_is_free(2+i));
 
@@ -132,7 +143,37 @@ static int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)
 {
 	// LAB 5: Your code here.
-	panic("file_block_walk not implemented");
+	// panic("file_block_walk not implemented");
+    uint32_t *pdiskbno = NULL;
+
+    if (filebno >= NDIRECT + NINDIRECT)
+        return -E_INVAL;
+
+    if (filebno < NDIRECT)
+        pdiskbno = f->f_direct + filebno;
+    else {
+        if (!f->f_indirect) {
+            if (!alloc)
+                return -E_NOT_FOUND;
+            else {
+                f->f_indirect = alloc_block();
+                if (f->f_indirect < 0) {
+                    f->f_indirect = 0;
+
+                    return -E_NO_DISK;
+                } else {
+                    memset(diskaddr(f->f_indirect, 0, BLKSIZE));
+                    flush_block(diskaddr(r));
+                }
+            }
+        }
+
+        pdiskbno = (uint32_t *)diskaddr(f->f_indirect) + filebno - NDIRECT;
+    }
+
+    *ppdiskbno = pdiskbno;
+
+    return 0;
 }
 
 // Set *blk to the address in memory where the filebno'th
@@ -148,7 +189,24 @@ int
 file_get_block(struct File *f, uint32_t filebno, char **blk)
 {
 	// LAB 5: Your code here.
-	panic("file_get_block not implemented");
+	// panic("file_get_block not implemented");
+    int r = 0;
+    uint32_t *pdiskbno = NULL;
+    if ((r = file_block_walk(f, filebno, &pdiskbno, 1)) < 0)
+        return r;
+
+    if (!*pdiskbno)
+        if ((r = alloc_block()) < 0)
+            return -E_NO_DISK;
+        else {
+            *pdiskbno = r;
+            memset(diskaddr(r), 0, BLKSIZE);
+            flush_block(diskaddr(r));
+        }
+
+    *blk = (char *)(DISKMAP + ((uint32_t)*pdiskbno) * BLKSIZE);
+
+    return 0;
 }
 
 // Try to find a file named "name" in dir.  If so, set *file to it.
@@ -197,15 +255,18 @@ dir_alloc_file(struct File *dir, struct File **file)
 		if ((r = file_get_block(dir, i, &blk)) < 0)
 			return r;
 		f = (struct File*) blk;
+        // stop when an empyt file entry slot is found
 		for (j = 0; j < BLKFILES; j++)
 			if (f[j].f_name[0] == '\0') {
 				*file = &f[j];
 				return 0;
 			}
 	}
+    // all file entries available is filled.
 	dir->f_size += BLKSIZE;
 	if ((r = file_get_block(dir, i, &blk)) < 0)
 		return r;
+    // allocate a new data block
 	f = (struct File*) blk;
 	*file = &f[0];
 	return 0;
@@ -366,6 +427,7 @@ file_write(struct File *f, const void *buf, size_t count, off_t offset)
 
 // Remove a block from file f.  If it's not there, just silently succeed.
 // Returns 0 on success, < 0 on error.
+// Succeed silently is not a good choice, I think.
 static int
 file_free_block(struct File *f, uint32_t filebno)
 {
@@ -398,6 +460,8 @@ file_truncate_blocks(struct File *f, off_t newsize)
 
 	old_nblocks = (f->f_size + BLKSIZE - 1) / BLKSIZE;
 	new_nblocks = (newsize + BLKSIZE - 1) / BLKSIZE;
+    // file block starts from 0, so new_nblocks points to next block
+    // of required size.
 	for (bno = new_nblocks; bno < old_nblocks; bno++)
 		if ((r = file_free_block(f, bno)) < 0)
 			cprintf("warning: file_free_block: %e", r);
@@ -432,6 +496,7 @@ file_flush(struct File *f)
 	for (i = 0; i < (f->f_size + BLKSIZE - 1) / BLKSIZE; i++) {
 		if (file_block_walk(f, i, &pdiskbno, 0) < 0 ||
 		    pdiskbno == NULL || *pdiskbno == 0)
+            // succeed silently
 			continue;
 		flush_block(diskaddr(*pdiskbno));
 	}
@@ -459,6 +524,7 @@ file_remove(const char *path)
 }
 
 // Sync the entire file system.  A big hammer.
+// It's very time costy. We can just sync dirty blocks/pages.
 void
 fs_sync(void)
 {

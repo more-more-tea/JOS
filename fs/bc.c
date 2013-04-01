@@ -49,7 +49,14 @@ bc_pgfault(struct UTrapframe *utf)
 	// the page dirty).
 	//
 	// LAB 5: Your code here
-	panic("bc_pgfault not implemented");
+	// panic("bc_pgfault not implemented");
+    // allocate a physical page
+    void *va = (void *)(DISKMAP + blockno * BLKSIZE);
+    if ((r = sys_page_alloc(sys_getenvid(), va, PTE_P | PTE_U | PTE_W)) < 0)
+        panic("sys_page_alloc: fail allocate page %e.", r);
+
+    if ((r = ide_read(blockno * BLKSECTS, va, BLKSECTS)) < 0)
+        panic("ide_read: fail to read data from IDE %e.", r);
 
 	// Check that the block we read was allocated. (exercise for
 	// the reader: why do we do this *after* reading the block
@@ -74,7 +81,17 @@ flush_block(void *addr)
 		panic("flush_block of bad va %08x", addr);
 
 	// LAB 5: Your code here.
-	panic("flush_block not implemented");
+	// panic("flush_block not implemented");
+    if (va_is_mapped(addr) || va_is_dirty(addr)) {
+        int r    = 0;
+        void *va = (void *)(DISKMAP + blockno * BLKSIZE);
+        if ((r = ide_write(blockno * BLKSECTS, va, BLKSECTS)) < 0)
+            panic("ide_write: fail to write page %d, %e.", blockno, r);
+
+        envid_t envid = sys_getenvid();
+        if ((r = sys_page_map(envid, addr, envid, addr, PTE_SYSCALL)) < 0)
+            panic("sys_page_map: fail to set permission %e.", r);
+    }
 }
 
 // Test that the block cache works, by smashing the superblock and

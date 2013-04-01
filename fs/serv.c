@@ -84,6 +84,7 @@ openfile_alloc(struct OpenFile **o)
 }
 
 // Look up an open file for envid.
+// WTF is envid used for?
 int
 openfile_lookup(envid_t envid, uint32_t fileid, struct OpenFile **po)
 {
@@ -215,7 +216,20 @@ serve_read(envid_t envid, union Fsipc *ipc)
 	// Hint: Use file_read.
 	// Hint: The seek position is stored in the struct Fd.
 	// LAB 5: Your code here
-	panic("serve_read not implemented");
+	// panic("serve_read not implemented");
+    int r     = 0;
+    int count = 0;
+    struct OpenFile *o;
+    if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
+        return r;
+
+    // read size should be less than one page and less than data left
+    count = MIN(MIN(req->req_n, o->o_file->f_size-o->o_fd->fd_offset), sizeof(ret->ret_buf));
+    count = file_read(o->o_file, ret->ret_buf, count, o->o_fd->fd_offset);
+    if (count >= 0)
+        o->o_fd->fd_offset += count;
+
+    return count;
 }
 
 // Write req->req_n bytes from req->req_buf to req_fileid, starting at
@@ -229,7 +243,19 @@ serve_write(envid_t envid, struct Fsreq_write *req)
 		cprintf("serve_write %08x %08x %08x\n", envid, req->req_fileid, req->req_n);
 
 	// LAB 5: Your code here.
-	panic("serve_write not implemented");
+	// panic("serve_write not implemented");
+    int r     = 0;
+    int count = 0;
+    struct OpenFile *o;
+    if ((r = openfile_lookup(envid, req->req_fileid, &o)) < 0)
+        return r;
+
+    count = MIN(req->req_n, sizeof(req.req_buf));
+    count = file_write(o->o_file, req->req_buf, count, o->o_fd->fd_offset);
+    if (count >= 0)
+        o->o_fd->fd_offset += count;
+
+    return count;
 }
 
 // Stat ipc->stat.req_fileid.  Return the file's struct Stat to the

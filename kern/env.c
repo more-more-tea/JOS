@@ -254,8 +254,10 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	e->env_status = ENV_RUNNABLE;
 	e->env_runs = 0;
 
-    // ensure interrupts in newly created environment is not masked
-    e->env_tf.tf_eflags |= FL_IF;
+    // assign IOPL to environment 1
+    if (e == &envs[1]) {
+        e->env_tf.tf_eflags |= FL_IOPL_MASK;
+    }
 
 	// Clear out all the saved register state,
 	// to prevent the register values
@@ -280,6 +282,8 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 
 	// Enable interrupts while in user mode.
 	// LAB 4: Your code here.
+    // ensure interrupts in newly created environment is not masked
+    e->env_tf.tf_eflags |= FL_IF;
 
 	// Clear the page fault handler until user installs one.
 	e->env_pgfault_upcall = 0;
